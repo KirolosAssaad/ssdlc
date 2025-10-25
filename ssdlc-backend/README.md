@@ -36,7 +36,7 @@ A secure and scalable Flask-based REST API for the BookVault ebook store applica
 ## Technology Stack
 
 - **Framework**: Flask 3.1.2
-- **Database**: SQLAlchemy with SQLite (configurable)
+- **Database**: SQLAlchemy with PostgreSQL
 - **Authentication**: Flask-JWT-Extended
 - **Password Hashing**: Flask-Bcrypt
 - **Validation**: Marshmallow
@@ -100,23 +100,31 @@ poetry install
 poetry shell
 ```
 
-4. **Copy environment variables:**
+4. **Set up PostgreSQL database:**
+```bash
+# Automated setup (recommended)
+python setup_postgres.py
+
+# Or follow manual setup in POSTGRES_SETUP.md
+```
+
+5. **Copy environment variables:**
 ```bash
 cp .env.example .env
 ```
 
-5. **Configure environment variables in `.env`:**
+6. **Configure environment variables in `.env`:**
 ```bash
 # Update these values as needed
 SECRET_KEY=your-secret-key-here
 JWT_SECRET_KEY=your-jwt-secret-key-here
-DATABASE_URL=sqlite:///bookvault.db
+DATABASE_URL=postgresql://bookvault_user:bookvault_password@localhost:5432/bookvault
 CORS_ORIGINS=http://localhost:5173
 ```
 
-6. **Initialize the database:**
+7. **Initialize the database:**
 ```bash
-flask init-db
+python init_db.py
 ```
 
 7. **Seed the database with sample data:**
@@ -230,7 +238,7 @@ FLASK_ENV=development
 DEBUG=True
 
 # Database Configuration
-DATABASE_URL=sqlite:///bookvault.db
+DATABASE_URL=postgresql://bookvault_user:bookvault_password@localhost:5432/bookvault
 
 # CORS Configuration
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
@@ -254,9 +262,9 @@ BOOKS_PER_PAGE=20
 ```
 
 ### Database Configuration
-The application supports multiple database backends through SQLAlchemy:
-- **Development**: SQLite (default)
-- **Production**: PostgreSQL, MySQL, or other SQLAlchemy-supported databases
+The application uses PostgreSQL as the primary database:
+- **Development**: PostgreSQL (local or Docker)
+- **Production**: PostgreSQL (managed service recommended)
 
 ## CLI Commands
 

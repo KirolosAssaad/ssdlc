@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import GoogleSignInButton from '../../components/GoogleSignInButton/GoogleSignInButton';
+import { GoogleAuthService } from '../../services/googleAuth';
 
 const Signup: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -24,6 +26,26 @@ const Signup: React.FC = () => {
       [e.target.name]: e.target.value
     });
   };
+
+  useEffect(() => {
+    // Handle redirect result for mobile Google sign-in
+    const handleRedirectResult = async () => {
+      try {
+        const result = await GoogleAuthService.getRedirectResult();
+        if (result) {
+          const userData = GoogleAuthService.extractUserData(result.user);
+          await handleGoogleSuccess({
+            ...userData,
+            isNewUser: result.isNewUser
+          });
+        }
+      } catch (error) {
+        setError('Google sign-up failed. Please try again.');
+      }
+    };
+
+    handleRedirectResult();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +78,24 @@ const Signup: React.FC = () => {
     } catch (err) {
       setError('Failed to create account. Please try again.');
     }
+  };
+
+  const handleGoogleSuccess = async (userData: any) => {
+    try {
+      const { googleSignIn } = useAuth();
+      if (googleSignIn) {
+        await googleSignIn(userData);
+        navigate('/');
+      } else {
+        throw new Error('Google sign-in not available');
+      }
+    } catch (err) {
+      setError('Failed to create account with Google. Please try again.');
+    }
+  };
+
+  const handleGoogleError = (error: string) => {
+    setError(error);
   };
 
   return (
@@ -203,6 +243,40 @@ const Signup: React.FC = () => {
             {isLoading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
+
+        {/* Divider */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          margin: '1.5rem 0',
+          color: '#666'
+        }}>
+          <div style={{ 
+            flex: 1, 
+            height: '1px', 
+            backgroundColor: '#e0e0e0' 
+          }} />
+          <span style={{ 
+            padding: '0 1rem', 
+            fontSize: '0.9rem',
+            backgroundColor: 'white'
+          }}>
+            or
+          </span>
+          <div style={{ 
+            flex: 1, 
+            height: '1px', 
+            backgroundColor: '#e0e0e0' 
+          }} />
+        </div>
+
+        {/* Google Sign-Up Button */}
+        <GoogleSignInButton
+          mode="signup"
+          onSuccess={handleGoogleSuccess}
+          onError={handleGoogleError}
+          disabled={isLoading}
+        />
 
         <div style={{ 
           textAlign: 'center', 

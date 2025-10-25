@@ -6,10 +6,10 @@ class Config:
     # Basic Flask configuration
     SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-in-production')
     
-    # Database configuration
+    # Database configuration - PostgreSQL only
     SQLALCHEMY_DATABASE_URI = config(
         'DATABASE_URL', 
-        default='sqlite:///bookvault.db'
+        default='postgresql://bookvault_user:bookvault_password@localhost:5432/bookvault'
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
@@ -55,13 +55,24 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    # Development uses PostgreSQL
+    SQLALCHEMY_DATABASE_URI = config(
+        'DATABASE_URL', 
+        default='postgresql://bookvault_user:bookvault_password@localhost:5432/bookvault'
+    )
     
 class ProductionConfig(Config):
     DEBUG = False
+    # Production uses PostgreSQL (should be set via environment variable)
+    SQLALCHEMY_DATABASE_URI = config('DATABASE_URL')
     
 class TestingConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    # Testing uses in-memory PostgreSQL or test database
+    SQLALCHEMY_DATABASE_URI = config(
+        'TEST_DATABASE_URL',
+        default='postgresql://bookvault_user:bookvault_password@localhost:5432/bookvault_test'
+    )
     WTF_CSRF_ENABLED = False
 
 config_dict = {

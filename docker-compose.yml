@@ -57,6 +57,9 @@ services:
       
       # Pagination
       BOOKS_PER_PAGE: 20
+      
+      # Google OAuth Configuration
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-demo-google-client-id}
     volumes:
       - backend_uploads:/app/uploads
     ports:

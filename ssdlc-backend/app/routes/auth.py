@@ -2,10 +2,13 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 from marshmallow import Schema, fields, ValidationError
 from email_validator import validate_email, EmailNotValidError
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from app import db
 from app.models.user import User
 from app.utils.decorators import validate_json
 from app.utils.responses import success_response, error_response
+import os
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -22,6 +25,10 @@ class SignupSchema(Schema):
 
 class ForgotPasswordSchema(Schema):
     email = fields.Email(required=True)
+
+class GoogleAuthSchema(Schema):
+    id_token = fields.Str(required=True)
+    access_token = fields.Str(required=False)
 
 @auth_bp.route('/login', methods=['POST'])
 @validate_json(LoginSchema())
@@ -150,6 +157,89 @@ def logout():
         
     except Exception as e:
         return error_response(f'Logout failed: {str(e)}', 500)
+
+@auth_bp.route('/google', methods=['POST'])
+@validate_json(GoogleAuthSchema())
+def google_auth():
+    """Google SSO authentication"""
+    try:
+        data = request.get_json()
+        id_token_str = data['id_token']
+        
+        # Verify the Google ID token
+        try:
+            # Get Google Client ID from environment
+            google_client_id = os.getenv('GOOGLE_CLIENT_ID')
+            if not google_client_id:
+                return error_response('Google authentication not configured', 500)
+            
+            # Verify the token
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str, 
+                google_requests.Request(), 
+                google_client_id
+            )
+            
+            # Verify the issuer
+            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+                return error_response('Invalid token issuer', 400)
+            
+            # Extract user information
+            google_user_id = idinfo['sub']
+            email = idinfo['email']
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            picture = idinfo.get('picture', '')
+            email_verified = idinfo.get('email_verified', False)
+            
+        except ValueError as e:
+            return error_response(f'Invalid Google token: {str(e)}', 400)
+        
+        # Check if user exists
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # Existing user - sign them in
+            if not user.is_active:
+                return error_response('Account is disabled', 403)
+            
+            # Update user info from Google if needed
+            if not user.google_id:
+                user.google_id = google_user_id
+                user.profile_picture = picture
+                db.session.commit()
+            
+        else:
+            # New user - create account
+            if not email_verified:
+                return error_response('Email not verified with Google', 400)
+            
+            user = User(
+                email=email,
+                password='google-sso-user',  # Special password for SSO users
+                first_name=first_name,
+                last_name=last_name
+            )
+            user.google_id = google_user_id
+            user.profile_picture = picture
+            user.email_verified = True
+            
+            db.session.add(user)
+            db.session.commit()
+        
+        # Generate tokens
+        tokens = user.generate_tokens()
+        
+        return success_response({
+            'user': user.to_dict(),
+            'token': tokens['access_token'],
+            'refresh_token': tokens['refresh_token'],
+            'is_new_user': not bool(User.query.filter_by(email=email).first())
+        }, 'Google authentication successful')
+        
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f'Google authentication failed: {str(e)}', 500)
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()

@@ -122,11 +122,15 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Database files
+# Database files (SQLite - not used, but kept for safety)
 *.db
 *.sqlite
 *.sqlite3
 bookvault.db
+
+# PostgreSQL dumps (if any)
+*.sql
+*.dump
 
 # Upload directories
 uploads/
