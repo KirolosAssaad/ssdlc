@@ -1,109 +1,24 @@
-version: '3.8'
-
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: bookvault-postgres
+
+
+  # --- SMTP TEST SERVER (Mailpit) ---
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
     restart: unless-stopped
+
+  # --- NO CHANGE: DATABASE ---
+  db-1:
+    image: postgres:14-alpine
     environment:
-      POSTGRES_DB: bookvault
-      POSTGRES_USER: bookvault_user
-      POSTGRES_PASSWORD: bookvault_password
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+      - POSTGRES_DB=kahf
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=fred
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    ports:
-      - "5432:5432"
-    networks:
-      - bookvault-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bookvault_user -d bookvault"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Backend API
-  backend:
-    build:
-      context: ./ssdlc-backend
-      dockerfile: Dockerfile
-    container_name: bookvault-backend
-    restart: unless-stopped
-    environment:
-      # Flask Configuration
-      FLASK_ENV: production
-      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-jwt-secret-change-in-production}
-      DEBUG: "False"
-      
-      # Database Configuration
-      DATABASE_URL: postgresql://bookvault_user:bookvault_password@postgres:5432/bookvault
-      
-      # CORS Configuration
-      CORS_ORIGINS: http://localhost:3000,http://localhost:80,http://frontend
-      
-      # Email Configuration (optional)
-      MAIL_SERVER: ${MAIL_SERVER:-localhost}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USE_TLS: ${MAIL_USE_TLS:-True}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      
-      # File Upload Configuration
-      UPLOAD_FOLDER: uploads
-      MAX_CONTENT_LENGTH: 16777216
-      
-      # Pagination
-      BOOKS_PER_PAGE: 20
-      
-      # Google OAuth Configuration
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-demo-google-client-id}
-    volumes:
-      - backend_uploads:/app/uploads
-    ports:
-      - "5000:5000"
-    networks:
-      - bookvault-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Frontend Application
-  frontend:
-    build:
-      context: ./ssdlc-frontent
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_BASE_URL=http://localhost:5000/api
-    container_name: bookvault-frontend
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    networks:
-      - bookvault-network
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
 volumes:
   postgres_data:
-    driver: local
-  backend_uploads:
-    driver: local
-
-networks:
-  bookvault-network:
-    driver: bridge
