@@ -168,6 +168,7 @@ class DailyFileLogger:
                     pass
                 self._handler = None
 
+logger = DailyFileLogger()
 # Example usage:
 # from app.utils.logger import DailyFileLogger
 # log = DailyFileLogger(name="myapp", logs_dir="logs", level=logging.DEBUG)

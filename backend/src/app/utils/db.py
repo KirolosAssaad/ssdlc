@@ -28,7 +28,6 @@ async def dispose_engine() -> None:
     if engine is not None:
         await engine.dispose()
 
-
 @asynccontextmanager
 async def get_session():
     """
@@ -40,7 +39,9 @@ async def get_session():
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            # Let handlers decide when to commit; or do unit-of-work here.
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
         finally:
-            # session is closed by context manager
-            ...
+            await session.close()

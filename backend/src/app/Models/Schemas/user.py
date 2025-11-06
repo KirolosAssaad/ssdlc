@@ -25,6 +25,8 @@ class User(Base):
         Integer, primary_key=True, autoincrement=True)  # matches SERIAL
     username: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False)
+    first_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -47,7 +49,7 @@ class UserType(Base):
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True)
     type_name: Mapped[str] = mapped_column(
-        Enum('firebase', 'native', name='user_type_enum'), unique=True, nullable=False
+        Enum('cloud', 'native', name='user_type_enum'), unique=True, nullable=False
     )
 
 
