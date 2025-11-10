@@ -29,17 +29,6 @@ class SecurityHeadersMiddleware:
         self.app = app
         # sensible defaults; callers can override via add_middleware(...)
         self.hsts = hsts or "max-age=63072000; includeSubDomains; preload"
-        self.csp = csp or (
-            "default-src 'self'; "
-            "script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; "
-            "connect-src 'self'; "
-            "font-src 'self' data:; "
-            "object-src 'none'; "
-            "base-uri 'self'; "
-            "frame-ancestors 'none';"
-        )
         self.referrer_policy = referrer_policy
         self.permissions_policy = permissions_policy
 
@@ -64,7 +53,6 @@ class SecurityHeadersMiddleware:
                 add("X-Content-Type-Options", "nosniff")
                 add("X-Frame-Options", "DENY")
                 add("Referrer-Policy", self.referrer_policy)
-                add("Content-Security-Policy", self.csp)
                 add("Permissions-Policy", self.permissions_policy)
                 # modern browsers ignore X-XSS-Protection but some older clients still use it
                 add("X-XSS-Protection", "0")

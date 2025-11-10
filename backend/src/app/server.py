@@ -1,19 +1,27 @@
 from fastapi import FastAPI
 from app.middleware.sec_headers import SecurityHeadersMiddleware
 from contextlib import asynccontextmanager
-from app.utils.db import init_engine, dispose_engine
+from app.utils.db import init_engine, dispose_engine, get_session
+from app.routes.Auth import router as AuthRouter
+import uvicorn
+from sqlalchemy.future import select
+
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_engine()
-    # (Optional) Run a quick sanity check:
-    # async with engine.connect() as conn:
-    #     await conn.execute(text("SET statement_timeout = '5s'"))
-    yield
-    await dispose_engine()
+	await init_engine()
+	async with get_session() as session:
+		await session.execute(select(1))
+	yield
+	await dispose_engine()
 
-app = FastAPI(title="ssdlc-backend", lifespan=lifespan)
+app = FastAPI(title="ssdlc-backend", docs_url="/api/docs", redoc_url="/api/redoc", lifespan=lifespan)
+
 app.add_middleware(SecurityHeadersMiddleware)
+
+app.include_router(AuthRouter)
 
 @app.get("/health")
 async def health() -> dict:
@@ -25,17 +33,8 @@ async def health() -> dict:
 
 
 def run(host: str = "0.0.0.0", port: int = 8000, reload: bool = True) -> None:
-	"""Programmatic entrypoint for running the app with Uvicorn.
-
-	This is used by the Poetry script `backend.server:run` so you can run:
-	  poetry run start
-	"""
-	import uvicorn
-
 	uvicorn.run("app.server:app", host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":
-	# Allow running directly for local development: `python app/server.py`
-
 	run()
