@@ -1,5 +1,5 @@
 FROM postgres:latest
-COPY ./init.sql /docker-entrypoint-initdb.d/init.sql
+COPY ./init-scripts/ /docker-entrypoint-initdb.d/
 EXPOSE 5432
 ENV POSTGRES_USER=user
 ENV POSTGRES_PASSWORD=password

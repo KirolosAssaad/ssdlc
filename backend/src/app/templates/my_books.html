@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAHF - My Books</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        :root {
+            --bg-cream: #FDFBF5;
+            --text-maroon: #5D2E24;
+            --accent-brown: #7A3C2F;
+            --accent-dark: #5D2E24;
+        }
+
+        #pdf-canvas {
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .pdf-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--accent-brown);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .offline-badge {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            margin-left: 0.5rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 9999px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-brown);
+            transition: width 0.3s ease;
+        }
+    </style>
+    
+    <script>
+        tailwind.config = {
+          theme: {
+            extend: {
+              colors: {
+                'cream': 'var(--bg-cream)',
+                'maroon': 'var(--text-maroon)',
+                'accent': 'var(--accent-brown)',
+                'accent-dark': 'var(--accent-dark)',
+              },
+              fontFamily: {
+                sans: ['Inter', 'sans-serif'],
+              },
+            }
+          }
+        }
+    </script>
+</head>
+<body class="bg-cream text-maroon min-h-screen flex flex-col items-center justify-center p-6 transition-all duration-300">
+
+    <div class="w-full max-w-4xl">
+    
+        <div class="text-center mb-8">
+            <h1 class="text-6xl font-bold text-maroon mb-1">KAHF</h1>
+            <p class="text-xl font-light text-accent" style="letter-spacing: 0.15em;">EBOOK STORE</p>
+        </div>
+
+        <div class="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 transition-all duration-300">
+            <h2 class="text-3xl font-bold text-center text-maroon mb-6">My Books</h2>
+
+            <!-- Loading state -->
+            <div id="loading-books" class="text-center py-8">
+                <div class="loading-spinner mx-auto mb-4"></div>
+                <p class="text-accent">Loading your books...</p>
+            </div>
+
+            <!-- Empty state -->
+            <div id="empty-state" class="hidden text-center py-8">
+                <p class="text-lg text-maroon mb-4">📚 You don't have any books yet</p>
+                <p class="text-accent">Purchase books from the store to read them here</p>
+            </div>
+
+            <!-- Books list -->
+            <div id="books-list" class="hidden space-y-6">
+                <!-- Books will be dynamically inserted here -->
+            </div>
+
+            <!-- PDF Viewer Container -->
+            <div id="pdf-viewer-container" class="hidden pt-6 mt-6 border-t border-maroon/20">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-maroon" id="viewer-title">Now Reading: ...</h3>
+                    <span id="offline-reading-badge" class="hidden text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                        📖 Reading Offline
+                    </span>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div id="loading-indicator" class="hidden text-center py-8">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <p class="text-accent">Loading book...</p>
+                </div>
+
+                <!-- Error message -->
+                <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    <p class="font-bold">Error</p>
+                    <p id="error-text"></p>
+                </div>
+
+                <!-- PDF Controls -->
+                <div id="pdf-controls" class="pdf-controls hidden">
+                    <button id="prev-page" class="py-2 px-4 bg-accent text-white rounded-lg hover:bg-accent-dark">
+                        Previous
+                    </button>
+                    <span id="page-info" class="text-maroon font-semibold">
+                        Page <span id="page-num">1</span> of <span id="page-count">1</span>
+                    </span>
+                    <button id="next-page" class="py-2 px-4 bg-accent text-white rounded-lg hover:bg-accent-dark">
+                        Next
+                    </button>
+                </div>
+
+                <!-- PDF Canvas -->
+                <div class="bg-white p-4 rounded-lg mb-4">
+                    <canvas id="pdf-canvas" class="mx-auto"></canvas>
+                </div>
+
+                <button id="close-viewer-btn" class="w-full py-2 px-4 bg-maroon text-white font-semibold rounded-lg shadow-sm hover:bg-accent-dark transition-all duration-300">
+                    Close Reader
+                </button>
+            </div>
+
+        </div>
+        
+        <p class="text-center text-maroon/60 text-xs mt-6">
+            © 2025 KAHF EBOOK STORE. All rights reserved.
+        </p>
+    </div>
+
+    <script>
+        // Set up PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8000';  // Change this to match your FastAPI server
+        
+        // PDF rendering state
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+        const scale = 1.5;
+
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+
+    // Auth token (you need to implement this based on your auth system)
+    function getAccessToken() {
+    // First try localStorage (most common)
+    let token = localStorage.getItem('access_token');
+    if (token) return token;
+    
+    // Try sessionStorage
+    token = sessionStorage.getItem('access_token');
+    if (token) return token;
+    
+    // Try cookies
+    const cookies = document.cookie.split('; ');
+    const tokenCookie = cookies.find(row => row.startsWith('access_token='));
+    if (tokenCookie) {
+        return tokenCookie.split('=')[1];
+    }
+    
+    // For testing: If no token found, you can temporarily hardcode it
+    // REMOVE THIS LINE IN PRODUCTION!
+    return "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Im9OaG5jalRwVklsQ0RRQ1ZyVVdsMiJ9.eyJpc3MiOiJodHRwczovL2thaGYtYm9va3N0b3JlLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2OTE0OWU0YjcwMDNmNDQ2YmQ5MjdlODkiLCJhdWQiOlsiaHR0cHM6Ly9rYWhmLWJvb2tzdG9yZS51cy5hdXRoMC5jb20vYXBpL3YyLyIsImh0dHBzOi8va2FoZi1ib29rc3RvcmUudXMuYXV0aDAuY29tL3VzZXJpbmZvIl0sImlhdCI6MTc2Mjk2NzM0MCwiZXhwIjoxNzYzMDUzNzQwLCJzY29wZSI6Im9wZW5pZCBwcm9maWxlIGVtYWlsIG9mZmxpbmVfYWNjZXNzIiwiYXpwIjoiZGJqTVVSdmJTSDN0TWV1ZksyVVMyZ3ljUWZpdVU2T3MifQ.IC5LsrMlBE_2Qf7LpEioXcAywv_8ceuhUvqhDD74KnpJmCykPpMJsN2t7YlnUAsVzj2_nK7VZbqFSfQblXjrsXPGaitxJc611f7XIcmzfvfHzv1ERHbXZlxQBpqu_VsXOm5r5Z4IvVJj3a62MvX4iCersBzTGzODVRNPlghJswSCtsyfHx0NdGHSOc5IwNU0k0oLpVeNXfWrLp8ZlF6rvxf0jQIoQEKjEDz4McyJ48JgPsgooLpXqkzebkHY7QemZxebRb0uM-3lZkd4pxp3zXslw243iTK2zVNyEoTh-SQYRLqvV74iif5-9nOFYvfAapZSTeG2a97uvsJmqNvWjA";
+}
+
+        // ==========================================
+        // OFFLINE STORAGE SYSTEM (Same as before)
+        // ==========================================
+
+        class OfflineBookManager {
+            constructor() {
+                this.dbName = 'KAHF_Offline_Books';
+                this.dbVersion = 1;
+                this.storeName = 'encrypted_books';
+                this.db = null;
+            }
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        resolve();
+                    };
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) {
+                            db.createObjectStore(this.storeName, { keyPath: 'bookId' });
+                        }
+                    };
+                });
+            }
+
+            async getEncryptionKey() {
+                const fingerprint = `${navigator.userAgent}-${navigator.platform}-${navigator.language}-KAHF-SECRET-2025`;
+                const encoder = new TextEncoder();
+                const data = encoder.encode(fingerprint);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                return await crypto.subtle.importKey('raw', hashBuffer, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+            }
+
+            async encryptBook(arrayBuffer) {
+                const key = await this.getEncryptionKey();
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const encryptedData = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, arrayBuffer);
+                return { iv: Array.from(iv), data: encryptedData };
+            }
+
+            async decryptBook(encryptedBook) {
+                const key = await this.getEncryptionKey();
+                const iv = new Uint8Array(encryptedBook.iv);
+                const decryptedData = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, encryptedBook.data);
+                return decryptedData;
+            }
+
+            async saveBook(bookId, bookTitle, arrayBuffer) {
+                await this.init();
+                const encrypted = await this.encryptBook(arrayBuffer);
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                const bookData = {
+                    bookId: bookId,
+                    title: bookTitle,
+                    encrypted: encrypted,
+                    savedAt: new Date().toISOString()
+                };
+                return new Promise((resolve, reject) => {
+                    const request = store.put(bookData);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+
+            async loadBook(bookId) {
+                await this.init();
+                const transaction = this.db.transaction([this.storeName], 'readonly');
+                const store = transaction.objectStore(this.storeName);
+                return new Promise((resolve, reject) => {
+                    const request = store.get(bookId);
+                    request.onsuccess = async () => {
+                        if (!request.result) {
+                            reject(new Error('Book not found offline'));
+                            return;
+                        }
+                        try {
+                            const decrypted = await this.decryptBook(request.result.encrypted);
+                            resolve(decrypted);
+                        } catch (error) {
+                            reject(new Error('Failed to decrypt book'));
+                        }
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            }
+
+            async isBookOffline(bookId) {
+                await this.init();
+                const transaction = this.db.transaction([this.storeName], 'readonly');
+                const store = transaction.objectStore(this.storeName);
+                return new Promise((resolve, reject) => {
+                    const request = store.get(bookId);
+                    request.onsuccess = () => resolve(!!request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+
+            async removeBook(bookId) {
+                await this.init();
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                return new Promise((resolve, reject) => {
+                    const request = store.delete(bookId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+        }
+
+        const offlineManager = new OfflineBookManager();
+
+        // ==========================================
+        // FETCH USER'S BOOKS
+        // ==========================================
+
+        async function fetchMyBooks() {
+            const loadingEl = document.getElementById('loading-books');
+            const emptyStateEl = document.getElementById('empty-state');
+            const booksListEl = document.getElementById('books-list');
+
+            try {
+                const token = getAccessToken();
+                if (!token) {
+                    throw new Error('Not authenticated. Please log in.');
+                }
+
+                const response = await fetch(`${API_BASE_URL}/books/my-books`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch books');
+                }
+
+                const books = await response.json();
+
+                loadingEl.classList.add('hidden');
+
+                if (books.length === 0) {
+                    emptyStateEl.classList.remove('hidden');
+                } else {
+                    booksListEl.classList.remove('hidden');
+                    await renderBooks(books);
+                }
+
+            } catch (error) {
+                console.error('Error fetching books:', error);
+                loadingEl.classList.add('hidden');
+                emptyStateEl.classList.remove('hidden');
+                emptyStateEl.innerHTML = `
+                    <p class="text-lg text-red-600 mb-4">❌ ${error.message}</p>
+                    <p class="text-accent">Please try logging in again</p>
+                `;
+            }
+        }
+
+        async function renderBooks(books) {
+            const booksListEl = document.getElementById('books-list');
+            booksListEl.innerHTML = '';
+
+            for (const book of books) {
+                const isOffline = await offlineManager.isBookOffline(book.id);
+                
+                const bookCard = document.createElement('div');
+                bookCard.className = 'flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-white/50 border border-maroon/20 rounded-lg shadow-sm';
+                bookCard.innerHTML = `
+                    <div class="mb-4 sm:mb-0">
+                        <h3 class="text-lg font-bold text-maroon">
+                            ${book.title}
+                            <span id="offline-badge-${book.id}" class="offline-badge ${isOffline ? '' : 'hidden'}">Offline</span>
+                        </h3>
+                        <p class="text-sm text-accent">${book.author || 'Unknown Author'}</p>
+                        <div id="progress-container-${book.id}" class="hidden">
+                            <div class="progress-bar">
+                                <div id="progress-bar-${book.id}" class="progress-fill" style="width: 0%"></div>
+                            </div>
+                            <p id="progress-text-${book.id}" class="text-xs text-accent mt-1">Downloading...</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 shrink-0">
+                        <button onclick="loadBook(${book.id}, '${book.title}')" 
+                                class="py-2 px-4 bg-accent text-white font-semibold rounded-lg shadow-md hover:bg-accent-dark focus:outline-none focus:ring-2 focus:ring-accent-dark focus:ring-offset-2 transition-all duration-300">
+                            Read Online
+                        </button>
+                        <button id="make-offline-${book.id}" onclick="makeBookOffline(${book.id}, '${book.title}')" 
+                                class="${isOffline ? 'hidden' : ''} py-2 px-4 bg-white text-accent border border-accent font-semibold rounded-lg shadow-sm hover:bg-cream focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 transition-all duration-300">
+                            Make Offline
+                        </button>
+                        <button id="remove-offline-${book.id}" onclick="removeBookOffline(${book.id})" 
+                                class="${isOffline ? '' : 'hidden'} py-2 px-4 bg-red-100 text-red-700 border border-red-300 font-semibold rounded-lg shadow-sm hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 transition-all duration-300">
+                            Remove
+                        </button>
+                    </div>
+                `;
+                booksListEl.appendChild(bookCard);
+            }
+        }
+
+        async function loadBook(bookId, bookTitle, forceOnline = false) {
+            const viewerContainer = document.getElementById('pdf-viewer-container');
+            const viewerTitle = document.getElementById('viewer-title');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const errorMessage = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            const pdfControls = document.getElementById('pdf-controls');
+            const offlineReadingBadge = document.getElementById('offline-reading-badge');
+
+            viewerContainer.classList.remove('hidden');
+            viewerTitle.textContent = `Now Reading: ${bookTitle}`;
+            loadingIndicator.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            pdfControls.classList.add('hidden');
+            canvas.classList.add('hidden');
+            offlineReadingBadge.classList.add('hidden');
+
+            try {
+                let pdfData;
+                let isOfflineReading = false;
+
+                if (!forceOnline) {
+                    try {
+                        const isOffline = await offlineManager.isBookOffline(bookId);
+                        if (isOffline) {
+                            pdfData = await offlineManager.loadBook(bookId);
+                            isOfflineReading = true;
+                        }
+                    } catch (offlineError) {
+                        console.log('Offline load failed, fetching from server');
+                    }
+                }
+
+                if (!pdfData) {
+                    const token = getAccessToken();
+                    const response = await fetch(`${API_BASE_URL}/books/read/${bookId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Failed to load book');
+                    }
+
+                    const blob = await response.blob();
+                    pdfData = await blob.arrayBuffer();
+                }
+
+                if (isOfflineReading) {
+                    offlineReadingBadge.classList.remove('hidden');
+                }
+
+                const loadingTask = pdfjsLib.getDocument({data: pdfData});
+                pdfDoc = await loadingTask.promise;
+                document.getElementById('page-count').textContent = pdfDoc.numPages;
+                pageNum = 1;
+
+                loadingIndicator.classList.add('hidden');
+                pdfControls.classList.remove('hidden');
+                canvas.classList.remove('hidden');
+                renderPage(pageNum);
+
+            } catch (error) {
+                console.error('Error loading book:', error);
+                loadingIndicator.classList.add('hidden');
+                errorMessage.classList.remove('hidden');
+                errorText.textContent = error.message;
+            }
+        }
+
+        async function makeBookOffline(bookId, bookTitle) {
+            const makeBtn = document.getElementById(`make-offline-${bookId}`);
+            makeBtn.disabled = true;
+            makeBtn.textContent = 'Saving...';
+
+            try {
+                showProgress(bookId, 30, 'Downloading from server...');
+
+                const token = getAccessToken();
+                const response = await fetch(`${API_BASE_URL}/books/read/${bookId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to download book');
+                }
+
+                showProgress(bookId, 60, 'Processing...');
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+
+                showProgress(bookId, 90, 'Encrypting and saving...');
+                await offlineManager.saveBook(bookId, bookTitle, arrayBuffer);
+
+                showProgress(bookId, 100, 'Saved offline!');
+
+                setTimeout(() => {
+                    hideProgress(bookId);
+                    updateOfflineStatus(bookId);
+                    makeBtn.disabled = false;
+                    makeBtn.textContent = 'Make Offline';
+                }, 1000);
+
+                alert('✅ Book saved for offline reading!');
+
+            } catch (error) {
+                console.error('Error making book offline:', error);
+                hideProgress(bookId);
+                makeBtn.disabled = false;
+                makeBtn.textContent = 'Make Offline';
+                alert('❌ Failed to save book offline: ' + error.message);
+            }
+        }
+
+        async function removeBookOffline(bookId) {
+            if (!confirm('Remove this book from offline storage?')) {
+                return;
+            }
+
+            try {
+                await offlineManager.removeBook(bookId);
+                await updateOfflineStatus(bookId);
+                alert('✅ Book removed from offline storage');
+            } catch (error) {
+                console.error('Error removing book:', error);
+                alert('❌ Failed to remove book');
+            }
+        }
+
+        async function updateOfflineStatus(bookId) {
+            const isOffline = await offlineManager.isBookOffline(bookId);
+            const badge = document.getElementById(`offline-badge-${bookId}`);
+            const makeOfflineBtn = document.getElementById(`make-offline-${bookId}`);
+            const removeOfflineBtn = document.getElementById(`remove-offline-${bookId}`);
+
+            if (isOffline) {
+                badge.classList.remove('hidden');
+                makeOfflineBtn.classList.add('hidden');
+                removeOfflineBtn.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+                makeOfflineBtn.classList.remove('hidden');
+                removeOfflineBtn.classList.add('hidden');
+            }
+        }
+
+        function showProgress(bookId, percent, text) {
+            const container = document.getElementById(`progress-container-${bookId}`);
+            const bar = document.getElementById(`progress-bar-${bookId}`);
+            const textElem = document.getElementById(`progress-text-${bookId}`);
+            container.classList.remove('hidden');
+            bar.style.width = `${percent}%`;
+            textElem.textContent = text;
+        }
+
+        function hideProgress(bookId) {
+            const container = document.getElementById(`progress-container-${bookId}`);
+            container.classList.add('hidden');
+        }
+
+        function renderPage(num) {
+            pageRendering = true;
+            pdfDoc.getPage(num).then(function(page) {
+                const viewport = page.getViewport({scale: scale});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                const renderTask = page.render(renderContext);
+                renderTask.promise.then(function() {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+            document.getElementById('page-num').textContent = num;
+        }
+
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+
+        function closeViewer() {
+            document.getElementById('pdf-viewer-container').classList.add('hidden');
+            canvas.classList.add('hidden');
+            document.getElementById('pdf-controls').classList.add('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            document.getElementById('loading-indicator').classList.add('hidden');
+            document.getElementById('offline-reading-badge').classList.add('hidden');
+            if (pdfDoc) {
+                pdfDoc.destroy();
+                pdfDoc = null;
+            }
+            pageNum = 1;
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchMyBooks();
+
+            document.getElementById('prev-page').addEventListener('click', () => {
+                if (pageNum <= 1) return;
+                pageNum--;
+                queueRenderPage(pageNum);
+            });
+
+            document.getElementById('next-page').addEventListener('click', () => {
+                if (pageNum >= pdfDoc.numPages) return;
+                pageNum++;
+                queueRenderPage(pageNum);
+            });
+
+            document.getElementById('close-viewer-btn').addEventListener('click', closeViewer);
+        });
+    </script>
+
+</body>
+</html>

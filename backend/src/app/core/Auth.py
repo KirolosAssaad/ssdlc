@@ -113,3 +113,42 @@ def require_auth(required_roles: list[str] = []):
 
         return wrapper
     return decorator
+# ADD THIS FUNCTION TO THE END OF app/core/Auth.py
+def get_current_user_id(request: Request) -> int:
+    """
+    Extract the current user's ID from the authenticated request.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        User ID as integer
+        
+    Raises:
+        HTTPException: If user not authenticated
+    """
+    # Option 1: If you store user_id in request.state
+    if hasattr(request.state, "user_id"):
+        return request.state.user_id
+    
+    # Option 2: If you store user info in request.state
+    if hasattr(request.state, "user") and hasattr(request.state.user, "id"):
+        return request.state.user.id
+    
+    # Option 3: Extract from Auth0 JWT token
+    if hasattr(request.state, "user_info"):
+        user_info = request.state.user_info
+        # Auth0 typically uses 'sub' (subject) field
+        user_id_str = user_info.get("sub", "").split("|")[-1]
+        try:
+            return int(user_id_str)
+        except ValueError:
+            pass
+    
+    # If we can't find user ID, raise error
+    from app.utils.logger import logger
+    logger.error("Could not extract user ID from request")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="User ID not found in request. Please ensure you're authenticated."
+    )

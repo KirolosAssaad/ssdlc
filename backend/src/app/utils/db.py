@@ -1,7 +1,11 @@
-# app/db.py
+# app/utils/db.py
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from contextlib import asynccontextmanager
 from app.core.settings import settings
+
+# ADD THIS LINE - THIS IS WHAT'S MISSING!
+Base = declarative_base()
 
 engine: AsyncEngine | None = None
 AsyncSessionLocal: async_sessionmaker[AsyncSession] | None = None
