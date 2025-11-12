@@ -104,3 +104,71 @@ class Session(Base):
 
 # Helpful index (optional)
 Index("ix_sessions_user_id_expires_at", Session.user_id, Session.expires_at)
+
+from sqlalchemy import Float, Boolean, Text, Index, func
+from sqlalchemy.dialects.postgresql import TSVECTOR
+from datetime import datetime
+
+# Add these models to your existing user.py file
+
+class Book(Base):
+    """Enhanced book schema with full-text search support."""
+    __tablename__ = "books"
+    
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
+    title: Mapped[str] = mapped_column(
+        String(500), nullable=False, index=True
+    )
+    author: Mapped[str] = mapped_column(
+        String(255), nullable=False, index=True
+    )
+    description: Mapped[str] = mapped_column(Text)
+    isbn: Mapped[str] = mapped_column(
+        String(20), unique=True, nullable=False
+    )
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    rating: Mapped[float] = mapped_column(Float, default=0.0)
+    publication_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    is_available: Mapped[bool] = mapped_column(
+        Boolean, default=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    
+    # Full-text search vector (PostgreSQL specific)
+    search_vector: Mapped[str] = mapped_column(
+        TSVECTOR, nullable=True, index=True
+    )
+    
+    # Composite indexes
+    __table_args__ = (
+        Index('ix_books_title_author', 'title', 'author'),
+        Index('ix_books_is_available_rating', 'is_available', 'rating'),
+    )
+
+
+class BookCategory(Base):
+    """Book categorization for filtered searches."""
+    __tablename__ = "book_categories"
+    
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE")
+    )
+    category: Mapped[str] = mapped_column(
+        String(100), nullable=False, index=True
+    )
+    
+    __table_args__ = (
+        Index('ix_book_id_category', 'book_id', 'category'),
+    )
