@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.sec_headers import SecurityHeadersMiddleware
 from contextlib import asynccontextmanager
 from app.utils.db import init_engine, dispose_engine, get_session
@@ -22,6 +23,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add CORS middleware to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(AuthRouter)
@@ -34,6 +44,18 @@ async def health() -> dict:
     Returns a small JSON payload indicating service health.
     """
     return {"status": "ok"}
+
+@app.get("/cors-test")
+async def cors_test() -> dict:
+    """CORS test endpoint.
+    
+    Returns a simple response to test CORS configuration.
+    """
+    return {
+        "message": "CORS is working!",
+        "status": "success",
+        "cors_enabled": True
+    }
 
 def run(host: str = "0.0.0.0", port: int = 8000, reload: bool = True) -> None:
     uvicorn.run("app.server:app", host=host, port=port, reload=reload)

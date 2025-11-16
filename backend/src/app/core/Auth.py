@@ -107,8 +107,10 @@ def require_auth(required_roles: list[str] = []):
                 return await func(request, *args, **kwargs)
 
             except jwt.InvalidTokenError:
+                print("Invalid token")
                 raise HTTPException(status_code=401, detail="Invalid token")
             except Exception as e:
+                print(f"Auth error: {e}")
                 raise HTTPException(status_code=401, detail=str(e))
 
         return wrapper

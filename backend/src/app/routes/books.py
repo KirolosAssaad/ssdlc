@@ -33,16 +33,16 @@ async def get_all_books():
 @require_auth()
 async def get_my_books(request: Request):
     """Get all books that the current user owns"""
-    auth0_user_id = request.state.user_id
-    return await get_user_books_controller(auth0_user_id)
+    user_id = request.state.user_id
+    return await get_user_books_controller(user_id)
 
 
 @router.get("/my-purchases")
 @require_auth()
 async def get_my_purchases(request: Request):
     """Get all purchase records for the current user"""
-    auth0_user_id = request.state.user_id
-    return await get_user_purchases_controller(auth0_user_id)
+    user_id = request.state.user_id
+    return await get_user_purchases_controller(user_id)
 
 
 # # 5. Serve the My Books HTML page - BEFORE /{book_id}!
@@ -59,9 +59,9 @@ async def read_book(request: Request, book_id: int):
     Read/download a book file - DRM PROTECTED!
     Only users who purchased the book can access it.
     """
-    auth0_user_id = request.state.user_id
+    user_id = request.state.user_id
     
-    logger.info(f"📖 User {auth0_user_id} requesting book {book_id}")
+    logger.info(f"📖 User {user_id} requesting book {book_id}")
     
     base_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -69,7 +69,7 @@ async def read_book(request: Request, book_id: int):
     )
     
     try:
-        file_path = await get_secure_book_path(auth0_user_id, book_id, base_path)
+        file_path = await get_secure_book_path(user_id, book_id, base_path)
         
         return FileResponse(
             path=file_path,
@@ -89,8 +89,8 @@ async def read_book(request: Request, book_id: int):
 @require_auth()
 async def check_ownership(request: Request, book_id: int):
     """Check if the current user owns a specific book"""
-    auth0_user_id = request.state.user_id
-    return await check_user_owns_book_controller(auth0_user_id, book_id)
+    user_id = request.state.user_id
+    return await check_user_owns_book_controller(user_id, book_id)
 
 
 @router.post("/purchase/{book_id}")
@@ -100,8 +100,8 @@ async def purchase_book(request: Request, book_id: int):
     Purchase a book (give user access to it).
     In production, this would be called after payment processing.
     """
-    auth0_user_id = request.state.user_id
-    return await create_purchase_controller(auth0_user_id, book_id)
+    user_id = request.state.user_id
+    return await create_purchase_controller(user_id, book_id)
 
 @router.get("/{book_id}")
 async def get_book(book_id: int):
@@ -146,12 +146,19 @@ async def filter_books_by_genre(request: Request, genre_name: str):
 @require_auth()
 async def get_all_genres(request: Request):
     """Get a list of all unique genres available in the book store"""
-    all_books = await get_all_books_controller()
-    genres = set()
-    for book in all_books:
-        if book['genre']:
-            genres.add(book['genre'])
-    return list(genres)
+    try:
+        all_books = await get_all_books_controller()
+        genres = set()
+        for book in all_books:
+            if book['genre']:
+                genres.add(book['genre'])
+        return list(genres)
+    except Exception as e:
+        logger.error(f"Error getting genres: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve genres."
+        )
 
 @router.get("/author")
 @require_auth()

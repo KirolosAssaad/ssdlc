@@ -62,12 +62,12 @@ async def get_all_books():
         return books
 
 
-async def get_books_by_user(auth0_user_id: str):
+async def get_books_by_user(user_id: str):
     """
     Retrieve all books that a user has purchased (owns).
     
     Args:
-        auth0_user_id: The Auth0 user ID (from JWT 'sub' field)
+        user_id: The Auth0 user ID (from JWT 'sub' field)
         
     Returns:
         List of books the user owns
@@ -75,29 +75,37 @@ async def get_books_by_user(auth0_user_id: str):
     from app.Models.Schemas.book import Book
     from app.Models.Schemas.purchase import Purchase
     
-    async with get_session() as session:
-        # Join books with purchases to get books owned by user
-        result = await session.execute(
-            select(Book)
-            .join(Purchase, Purchase.book_id == Book.id)
-            .where(Purchase.auth0_user_id == auth0_user_id)
-        )
-        books = result.scalars().all()
-        logger.info(f"User {auth0_user_id} owns {len(books)} books")
-        return books
+    try:
+        async with get_session() as session:
+            # Join books with purchases to get books owned by user
+            result = await session.execute(
+                select(Book)
+                .join(Purchase, Purchase.book_id == Book.id)
+                .where(Purchase.user_id == user_id)
+            )
+            books = result.scalars().all()
+            logger.info(f"User {user_id} owns {len(books)} books")
+            return books
+    except Exception as e:
+        print("ERORRRR2")
+        logger.error(f"Error retrieving books for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve user's books."
+        ) from e
 
 
 # ==================================================================
 # --- DRM / PURCHASE CHECK FUNCTIONS ---
 # ==================================================================
 
-async def check_user_owns_book(auth0_user_id: str, book_id: int) -> bool:
+async def check_user_owns_book(user_id: str, book_id: int) -> bool:
     """
     Check if a user has purchased (owns) a specific book.
     This is the core DRM check!
     
     Args:
-        auth0_user_id: The Auth0 user ID (from JWT 'sub' field, e.g., "auth0|12345")
+        user_id: The Auth0 user ID (from JWT 'sub' field, e.g., "auth0|12345")
         book_id: The ID of the book
         
     Returns:
@@ -109,7 +117,7 @@ async def check_user_owns_book(auth0_user_id: str, book_id: int) -> bool:
         async with get_session() as session:
             result = await session.execute(
                 select(Purchase).where(
-                    Purchase.auth0_user_id == auth0_user_id,
+                    Purchase.user_id == user_id,
                     Purchase.book_id == book_id
                 )
             )
@@ -118,9 +126,9 @@ async def check_user_owns_book(auth0_user_id: str, book_id: int) -> bool:
             owns_book = purchase is not None
             
             if owns_book:
-                logger.info(f"✅ DRM CHECK PASSED: User {auth0_user_id} owns book {book_id}")
+                logger.info(f"✅ DRM CHECK PASSED: User {user_id} owns book {book_id}")
             else:
-                logger.warning(f"❌ DRM CHECK FAILED: User {auth0_user_id} does not own book {book_id}")
+                logger.warning(f"❌ DRM CHECK FAILED: User {user_id} does not own book {book_id}")
             
             return owns_book
             
@@ -132,12 +140,12 @@ async def check_user_owns_book(auth0_user_id: str, book_id: int) -> bool:
         ) from e
 
 
-async def get_purchase_record(auth0_user_id: str, book_id: int):
+async def get_purchase_record(user_id: str, book_id: int):
     """
     Get the purchase record for a user and book.
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         book_id: The ID of the book
         
     Returns:
@@ -148,19 +156,19 @@ async def get_purchase_record(auth0_user_id: str, book_id: int):
     async with get_session() as session:
         result = await session.execute(
             select(Purchase).where(
-                Purchase.auth0_user_id == auth0_user_id,
+                Purchase.user_id == user_id,
                 Purchase.book_id == book_id
             )
         )
         return result.scalars().first()
 
 
-async def create_purchase(auth0_user_id: str, book_id: int):
+async def create_purchase(user_id: str, book_id: int):
     """
     Create a purchase record (give user access to a book).
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         book_id: The ID of the book
         
     Returns:
@@ -169,9 +177,9 @@ async def create_purchase(auth0_user_id: str, book_id: int):
     from app.Models.Schemas.purchase import Purchase
     
     # First check if purchase already exists
-    existing_purchase = await get_purchase_record(auth0_user_id, book_id)
+    existing_purchase = await get_purchase_record(user_id, book_id)
     if existing_purchase:
-        logger.warning(f"Purchase already exists: user {auth0_user_id}, book {book_id}")
+        logger.warning(f"Purchase already exists: user {user_id}, book {book_id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already owns this book."
@@ -182,7 +190,7 @@ async def create_purchase(auth0_user_id: str, book_id: int):
     
     # Create purchase
     purchase = Purchase(
-        auth0_user_id=auth0_user_id,
+        user_id=user_id,
         book_id=book_id
     )
     
@@ -191,7 +199,7 @@ async def create_purchase(auth0_user_id: str, book_id: int):
             session.add(purchase)
             await session.commit()
             await session.refresh(purchase)
-            logger.info(f"✅ Purchase created: User {auth0_user_id} now owns book {book_id}")
+            logger.info(f"✅ Purchase created: User {user_id} now owns book {book_id}")
     except Exception as e:
         await session.rollback()
         logger.error(f"Error creating purchase: {e}")
@@ -203,12 +211,12 @@ async def create_purchase(auth0_user_id: str, book_id: int):
     return purchase
 
 
-async def get_all_purchases_by_user(auth0_user_id: str):
+async def get_all_purchases_by_user(user_id: str):
     """
     Get all purchases for a specific user.
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         
     Returns:
         List of purchase records
@@ -217,10 +225,10 @@ async def get_all_purchases_by_user(auth0_user_id: str):
     
     async with get_session() as session:
         result = await session.execute(
-            select(Purchase).where(Purchase.auth0_user_id == auth0_user_id)
+            select(Purchase).where(Purchase.user_id == user_id)
         )
         purchases = result.scalars().all()
-        logger.info(f"User {auth0_user_id} has {len(purchases)} purchases")
+        logger.info(f"User {user_id} has {len(purchases)} purchases")
         return purchases
 
 

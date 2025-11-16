@@ -40,6 +40,7 @@ async def get_book_controller(book_id: int):
             "title": book.title,
             "author": book.author if hasattr(book, 'author') else "Unknown",
             "description": book.description if hasattr(book, 'description') else "",
+            "genre": book.genre if hasattr(book, 'genre') else None,
         }
     except HTTPException:
         raise
@@ -64,6 +65,7 @@ async def get_all_books_controller():
                 "title": book.title,
                 "author": book.author if hasattr(book, 'author') else "Unknown",
                 "description": book.description if hasattr(book, 'description') else "",
+                "genre": book.genre if hasattr(book, 'genre') else None,
             }
             for book in books
         ]
@@ -79,28 +81,30 @@ async def get_all_books_controller():
             detail="Failed to retrieve books."
         ) from e
     
-async def get_user_books_controller(auth0_user_id: str):
+async def get_user_books_controller(user_id: str):
     """
     Get all books that a user owns (purchased).
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         
     Returns:
         List of books the user owns
     """
     try:
-        books = await get_books_by_user(auth0_user_id)
+        books = await get_books_by_user(user_id)
         return [
             {
                 "id": book.id,
                 "title": book.title,
                 "author": book.author if hasattr(book, 'author') else "Unknown",
                 "description": book.description if hasattr(book, 'description') else "",
+                "genre": book.genre if hasattr(book, 'genre') else None,
             }
             for book in books
         ]
     except Exception as e:
+        print("ERORRRR")
         logger.error(f"Error retrieving user books: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -112,13 +116,13 @@ async def get_user_books_controller(auth0_user_id: str):
 # --- DRM CONTROLLER (THE IMPORTANT ONE!) ---
 # ==================================================================
 
-async def authorize_book_access(auth0_user_id: str, book_id: int) -> Dict:
+async def authorize_book_access(user_id: str, book_id: int) -> Dict:
     """
     Authorize a user's access to a book (DRM check).
     This is called before serving the book file.
     
     Args:
-        auth0_user_id: The Auth0 user ID requesting access
+        user_id: The Auth0 user ID requesting access
         book_id: The ID of the book being requested
         
     Returns:
@@ -127,11 +131,11 @@ async def authorize_book_access(auth0_user_id: str, book_id: int) -> Dict:
     Raises:
         HTTPException: If user doesn't own the book (403 Forbidden)
     """
-    logger.info(f"🔐 DRM Check: User {auth0_user_id} requesting access to book {book_id}")
+    logger.info(f"🔐 DRM Check: User {user_id} requesting access to book {book_id}")
     
     # Step 1: Check if user owns the book
     try:
-        owns_book = await check_user_owns_book(auth0_user_id, book_id)
+        owns_book = await check_user_owns_book(user_id, book_id)
     except HTTPException:
         raise
     except Exception as e:
@@ -143,14 +147,14 @@ async def authorize_book_access(auth0_user_id: str, book_id: int) -> Dict:
     
     # Step 2: If user doesn't own the book, deny access
     if not owns_book:
-        logger.warning(f"❌ ACCESS DENIED: User {auth0_user_id} tried to access book {book_id} without purchase")
+        logger.warning(f"❌ ACCESS DENIED: User {user_id} tried to access book {book_id} without purchase")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access Denied: Purchase required to access this book."
         )
     
     # Step 3: User owns the book, get the file path
-    logger.info(f"✅ ACCESS GRANTED: User {auth0_user_id} authorized for book {book_id}")
+    logger.info(f"✅ ACCESS GRANTED: User {user_id} authorized for book {book_id}")
     
     try:
         filepath = await get_book_filepath(book_id)
@@ -167,17 +171,17 @@ async def authorize_book_access(auth0_user_id: str, book_id: int) -> Dict:
         "authorized": True,
         "filepath": filepath,
         "book_id": book_id,
-        "auth0_user_id": auth0_user_id
+        "user_id": user_id
     }
 
 
-async def get_secure_book_path(auth0_user_id: str, book_id: int, base_path: str) -> str:
+async def get_secure_book_path(user_id: str, book_id: int, base_path: str) -> str:
     """
     Get the secure file path for a book after DRM authorization.
     Prevents path traversal attacks.
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         book_id: The ID of the book
         base_path: The base directory where books are stored
         
@@ -188,7 +192,7 @@ async def get_secure_book_path(auth0_user_id: str, book_id: int, base_path: str)
         HTTPException: If unauthorized or file not found
     """
     # Authorize access first (DRM check)
-    auth_result = await authorize_book_access(auth0_user_id, book_id)
+    auth_result = await authorize_book_access(user_id, book_id)
     
     # Get the filename and sanitize it (prevent path traversal)
     filename = os.path.basename(auth_result["filepath"])
@@ -212,13 +216,13 @@ async def get_secure_book_path(auth0_user_id: str, book_id: int, base_path: str)
 # --- PURCHASE CONTROLLER ---
 # ==================================================================
 
-async def create_purchase_controller(auth0_user_id: str, book_id: int):
+async def create_purchase_controller(user_id: str, book_id: int):
     """
     Create a purchase (give user access to a book).
     In a real app, this would be called after payment processing.
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         book_id: The ID of the book
         
     Returns:
@@ -229,9 +233,9 @@ async def create_purchase_controller(auth0_user_id: str, book_id: int):
         book = await get_book_by_id(book_id)
         
         # Create the purchase
-        purchase = await create_purchase(auth0_user_id, book_id)
+        purchase = await create_purchase(user_id, book_id)
         
-        logger.info(f"✅ Purchase completed: User {auth0_user_id} now owns '{book.title}'")
+        logger.info(f"✅ Purchase completed: User {user_id} now owns '{book.title}'")
         
         return {
             "status": "success",
@@ -250,21 +254,21 @@ async def create_purchase_controller(auth0_user_id: str, book_id: int):
         ) from e
 
 
-async def check_user_owns_book_controller(auth0_user_id: str, book_id: int):
+async def check_user_owns_book_controller(user_id: str, book_id: int):
     """
     Check if a user owns a specific book.
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         book_id: The ID of the book
         
     Returns:
         Dictionary with ownership status
     """
     try:
-        owns_book = await check_user_owns_book(auth0_user_id, book_id)
+        owns_book = await check_user_owns_book(user_id, book_id)
         return {
-            "auth0_user_id": auth0_user_id,
+            "user_id": user_id,
             "book_id": book_id,
             "owns_book": owns_book
         }
@@ -276,18 +280,18 @@ async def check_user_owns_book_controller(auth0_user_id: str, book_id: int):
         ) from e
 
 
-async def get_user_purchases_controller(auth0_user_id: str):
+async def get_user_purchases_controller(user_id: str):
     """
     Get all purchases for a user.
     
     Args:
-        auth0_user_id: The Auth0 user ID
+        user_id: The Auth0 user ID
         
     Returns:
         List of purchase records with book details
     """
     try:
-        purchases = await get_all_purchases_by_user(auth0_user_id)
+        purchases = await get_all_purchases_by_user(user_id)
         
         result = []
         for purchase in purchases:

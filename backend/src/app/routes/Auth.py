@@ -13,7 +13,7 @@ async def signup():
     query_params = {
         "response_type": "code",
         "client_id": settings.AUTH0_CLIENT_ID,
-        "redirect_uri": "http://localhost:8000/auth/callback",        
+        "redirect_uri": "http://localhost:5173/login",        
         "scope": "openid profile email offline_access read:users read:roles read:role_members",
         "audience": settings.AUTH0_AUDIENCE
     }
@@ -33,11 +33,13 @@ async def callback(code: str):
         "client_id": settings.AUTH0_CLIENT_ID,
         "client_secret": settings.AUTH0_CLIENT_SECRET,
         "code": code,
-        "redirect_uri": settings.AUTH_REDIRECT_URI
+        "redirect_uri": "http://localhost:5173/login"
     }
     
     import requests
+    print("CODE:", code)
     response = requests.post(AUTH_TOKEN_URL, json=token_payload)
+    print("Token Response:", response.text)
     response_data = response.json()
     user_info = await get_user_info(response_data.get("access_token"))
     user_id = user_info.get("sub")

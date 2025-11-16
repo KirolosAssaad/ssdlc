@@ -36,8 +36,8 @@ CREATE INDEX IF NOT EXISTS idx_purchases_user_book ON purchases(user_id, book_id
 
 -- Insert sample books
 INSERT INTO books (id, title, author, genre, description, filepath) VALUES
-    (1, 'The Secret Garden', 'Frances Hodgson Burnett', 'Fiction', 'A classic tale of transformation and healing.', '/home/kiro/Desktop/ssdlc/backend/temp/1.pdf'),
-    (2, 'Journey to the Center of the Earth', 'Jules Verne', 'Science Fiction', 'An adventure into the unknown depths.', '/home/kiro/Desktop/ssdlc/backend/temp/2.pdf')
+    (1, 'The Secret Garden', 'Frances Hodgson Burnett', 'Fiction', 'A classic tale of transformation and healing.', '1.pdf'),
+    (2, 'Journey to the Center of the Earth', 'Jules Verne', 'Science Fiction', 'An adventure into the unknown depths.', '2.pdf')
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample purchase with Auth0 user ID
