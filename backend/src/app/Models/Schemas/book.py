@@ -1,12 +1,6 @@
-"""
-Book Model Schema
-SQLAlchemy model for the books table
-"""
-
 from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.sql import func
-from app.utils.db import Base  # Adjust import based on your project
-
+from app.utils.db import Base
 
 class Book(Base):
     """
@@ -18,7 +12,8 @@ class Book(Base):
     title = Column(String(255), nullable=False, index=True)
     author = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
-    filepath = Column(String(500), nullable=False)  # Path to PDF file (e.g., "1.pdf")
+    genre = Column(String(100), nullable=True)
+    filepath = Column(String(500), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
