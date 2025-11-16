@@ -1,3 +1,5 @@
 # ENVIRONMENT VARIABLES
 .env
-.env.*node_modules/
+.env.*
+
+node_modules/
